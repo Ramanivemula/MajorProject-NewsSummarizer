@@ -1,9 +1,26 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FaNewspaper, FaCog, FaBell } from "react-icons/fa";
 import background from "../assets/background.png";
+import axios from "axios";
 
 const LandingPage = () => {
+  const [latestNews, setLatestNews] = useState([]);
+
+  // Fetch latest news
+  useEffect(() => {
+    const fetchNews = async () => {
+      try {
+        const res = await axios.get("http://localhost:5000/api/news/latest"); // Adjust URL if needed
+        setLatestNews(res.data.articles); // Expecting array of news items
+      } catch (err) {
+        console.error("Error fetching latest news:", err.message);
+      }
+    };
+
+    fetchNews();
+  }, []);
+
   return (
     <div className="min-h-screen bg-white text-gray-800">
       {/* Header */}
@@ -25,14 +42,9 @@ const LandingPage = () => {
       {/* Hero Section */}
       <section
         className="relative h-[90vh] bg-cover bg-center flex items-center justify-center text-center px-6"
-        style={{
-          backgroundImage: `url(${background})`,
-        }}
+        style={{ backgroundImage: `url(${background})` }}
       >
-        {/* Overlay */}
         <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm"></div>
-
-        {/* Content */}
         <div className="relative z-10 text-white max-w-3xl animate-fade-in">
           <h2 className="text-5xl md:text-6xl font-extrabold mb-6 leading-tight drop-shadow-md">
             Stay Updated,<br /> Stay Smart
@@ -53,7 +65,7 @@ const LandingPage = () => {
       <section className="py-20 bg-white text-center">
         <h3 className="text-4xl font-bold mb-14 text-purple-700">How MeraPaper Works</h3>
         <div className="flex flex-col md:flex-row justify-center items-center gap-10 px-6">
-          {[ 
+          {[
             { icon: <FaCog />, title: "Customize Preferences", desc: "Select your interests, location & delivery method." },
             { icon: <FaBell />, title: "Get Daily Summaries", desc: "We send 5–6 point summaries via Email or WhatsApp." },
             { icon: <FaNewspaper />, title: "Read the News", desc: "View summarized news in your dashboard with full links." }
@@ -67,23 +79,48 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Latest News (Dummy cards) */}
+      {/* Latest News Section */}
       <section className="py-20 bg-gray-100 text-center">
-        <h3 className="text-4xl font-bold mb-12 text-purple-700">Latest News</h3>
-        <div className="grid gap-8 md:grid-cols-3 px-6">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="bg-white shadow-lg p-6 rounded-xl hover:shadow-2xl transition">
-              <h4 className="font-bold text-xl mb-3 text-gray-800">Breaking Headline {n}</h4>
-              <ul className="text-left text-sm text-gray-600 mb-4 list-disc ml-5 space-y-1">
-                <li>Point 1 of the summary</li>
-                <li>Point 2 of the summary</li>
-                <li>Point 3 of the summary</li>
-              </ul>
-              <a href="#" className="text-purple-600 hover:underline text-sm font-medium">Read Full Article</a>
-            </div>
-          ))}
+  <h3 className="text-5xl font-extrabold mb-16 text-purple-700 tracking-widest">🗞️ Latest News</h3>
+
+  <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-3 px-4 md:px-10">
+    {latestNews.length === 0 ? (
+      <p className="col-span-full text-gray-500 text-lg">No news available at the moment.</p>
+    ) : (
+      latestNews.slice(0, 6).map((news, index) => (
+        <div
+          key={index}
+          className="bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all p-6 flex flex-col justify-between text-left border border-gray-200 min-h-[340px] max-w-[360px] mx-auto"
+        >
+          <div className="space-y-4">
+            <h4 className="font-semibold text-lg md:text-xl text-gray-900 tracking-normal leading-snug line-clamp-2">
+              📰 {news.title}
+            </h4>
+
+            <ul className="text-sm text-gray-700 space-y-2 list-disc ml-5 leading-relaxed">
+              {news.summary?.slice(0, 4).map((point, i) => (
+                <li key={i}>{point}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="mt-6">
+            <a
+              href={news.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-700 hover:text-purple-900 font-medium text-sm underline"
+            >
+              🔗 Read Full Article
+            </a>
+            <p className="text-xs text-gray-400 mt-1">📅 {new Date(news.publishedAt).toLocaleDateString()}</p>
+          </div>
         </div>
-      </section>
+      ))
+    )}
+  </div>
+</section>
+
     </div>
   );
 };

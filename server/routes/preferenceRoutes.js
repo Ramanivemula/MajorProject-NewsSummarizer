@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Preference = require('../models/Preference');
-const authenticate = require('../middleware/authMiddleware'); // middleware to protect routes
+const {authenticate} = require('../middleware/authMiddleware'); // middleware to protect routes
 
 // 🔒 Save or update user preferences
 router.post('/save', authenticate, async (req, res) => {

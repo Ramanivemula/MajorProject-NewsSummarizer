@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+// ✅ Middleware 1: For routes using async/await style
 const authenticate = async (req, res, next) => {
   const authHeader = req.header('Authorization');
 
@@ -8,11 +9,11 @@ const authenticate = async (req, res, next) => {
     return res.status(401).json({ error: 'No token, authorization denied' });
   }
 
-  const token = authHeader.split(' ')[1]; // Get only the token part after "Bearer"
+  const token = authHeader.split(' ')[1];
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // Set decoded payload (user info) to request
+    req.user = decoded; // payload like { id: userId }
     next();
   } catch (err) {
     console.error('Token error:', err.message);
@@ -20,4 +21,23 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-module.exports = authenticate;
+// ✅ Middleware 2: For routes using callback-style
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) return res.status(401).json({ error: 'No token provided' });
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: 'Token is not valid' });
+
+    req.user = user;
+    next();
+  });
+};
+
+// ✅ Export both
+module.exports = {
+  authenticate,
+  authenticateToken
+};
