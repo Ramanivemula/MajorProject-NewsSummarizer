@@ -1,70 +1,307 @@
+const axios = require('axios');
 const News = require('../models/News');
+const Preference = require('../models/Preference');
 const User = require('../models/User');
+const summarizer = require('../utils/summarizer');
 
-const fetchNewsFromDB = async (req, res) => {
+// Fetch latest news from GNews API
+exports.getLatestNews = async (req, res) => {
   try {
-    console.log("Authenticated User:", req.user); // { id: '...' }
+    const { category, country, lang, max } = req.query;
+    const apiKey = process.env.GNEWS_API_KEY;
 
-    const { category, country, state, timeRange } = req.query;
-    const userId = req.user?.id;
+    const params = {
+      lang: lang || 'en',
+      country: country || 'in',
+      max: max || 10,
+      apikey: apiKey
+    };
 
-    // 🔍 Fetch user preferences as fallback
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    const query = {};
-
-    // ✅ Prefer request query, fallback to user preferences
-    query.category =
-      category && category.toLowerCase() !== 'all'
-        ? category
-        : user.preferences.newsTypes?.[0] || undefined;
-
-    query.country =
-      country && country.toLowerCase() !== 'all'
-        ? country
-        : user.preferences.country || undefined;
-
-    query.state =
-      state && state.toLowerCase() !== 'all'
-        ? state
-        : user.preferences.state || undefined;
-
-    // 🕒 Time filter
-    if (timeRange) {
-      const now = new Date();
-      let fromDate;
-
-      if (timeRange === 'week') {
-        fromDate = new Date(now.setDate(now.getDate() - 7));
-      } else if (timeRange === 'month') {
-        fromDate = new Date(now.setMonth(now.getMonth() - 1));
-      } else if (timeRange === 'year') {
-        fromDate = new Date(now.setFullYear(now.getFullYear() - 1));
-      }
-
-      if (fromDate) {
-        query.publishedAt = { $gte: fromDate };
-      }
+    if (category && category !== 'all') {
+      params.category = category;
     }
 
-    // 🔍 Print final query being sent to MongoDB
-    console.log('MongoDB query =>', query);
+    const response = await axios.get('https://gnews.io/api/v4/top-headlines', { params });
 
-    // 🔽 Get filtered news
-    let news = await News.find(query).sort({ publishedAt: -1 }).limit(50);
+    const articles = response.data.articles.map(article => ({
+      title: article.title,
+      content: article.content,
+      description: article.description,
+      summary: article.description || article.content || 'No summary available.',
+      url: article.url,
+      image: article.image,
+      publishedAt: article.publishedAt,
+      source: {
+        name: article.source.name,
+        url: article.source.url
+      }
+    }));
 
-    // 🔄 Fallback: If no news found, return latest headlines
-    if (news.length === 0) {
-      console.log("No filtered news found, sending latest fallback news...");
-      news = await News.find().sort({ publishedAt: -1 }).limit(10);
-    }
-
-    res.status(200).json(news);
+    res.json({ articles, total: response.data.totalArticles });
   } catch (error) {
-    console.error('Error fetching filtered news:', error.message);
-    res.status(500).json({ error: 'Failed to fetch news' });
+    console.error('Error fetching news:', error.message);
+    res.status(500).json({ error: 'Failed to fetch news', message: error.message });
   }
 };
 
-module.exports = { fetchNewsFromDB };
+// Fetch personalized news based on user preferences
+exports.getPersonalizedNews = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Get user preferences
+    const preference = await Preference.findOne({ userId });
+    const user = await User.findById(userId);
+
+    if (!preference && !user) {
+      return res.status(404).json({ message: 'User preferences not found' });
+    }
+
+    const apiKey = process.env.GNEWS_API_KEY;
+    const newsTypes = preference?.newsTypes || user?.newsTypes || ['general'];
+    const country = preference?.countries?.[0] || user?.country || 'in';
+    
+    // Fetch news for each preferred category
+    const newsPromises = newsTypes.slice(0, 3).map(async (category) => {
+      try {
+        const response = await axios.get('https://gnews.io/api/v4/top-headlines', {
+          params: {
+            category: category.toLowerCase(),
+            lang: 'en',
+            country: country.toLowerCase(),
+            max: 5,
+            apikey: apiKey
+          }
+        });
+        return response.data.articles || [];
+      } catch (err) {
+        console.error(`Error fetching ${category} news:`, err.message);
+        return [];
+      }
+    });
+
+    const newsResults = await Promise.all(newsPromises);
+    const allArticles = newsResults.flat();
+
+    const articles = allArticles.map(article => ({
+      title: article.title,
+      content: article.content,
+      description: article.description,
+      summary: article.description || article.content || 'No summary available.',
+      url: article.url,
+      image: article.image,
+      publishedAt: article.publishedAt,
+      source: {
+        name: article.source.name,
+        url: article.source.url
+      }
+    }));
+
+    res.json({ articles, total: articles.length });
+  } catch (error) {
+    console.error('Error fetching personalized news:', error.message);
+    res.status(500).json({ error: 'Failed to fetch personalized news', message: error.message });
+  }
+};
+
+// Search news by keyword
+exports.searchNews = async (req, res) => {
+  try {
+    const { q, lang, country, max } = req.query;
+
+    if (!q) {
+      return res.status(400).json({ error: 'Search query (q) is required' });
+    }
+
+    const apiKey = process.env.GNEWS_API_KEY;
+
+    const response = await axios.get('https://gnews.io/api/v4/search', {
+      params: {
+        q,
+        lang: lang || 'en',
+        country: country || 'in',
+        max: max || 10,
+        apikey: apiKey
+      }
+    });
+
+    const articles = response.data.articles.map(article => ({
+      title: article.title,
+      content: article.content,
+      description: article.description,
+      summary: article.description || article.content || 'No summary available.',
+      url: article.url,
+      image: article.image,
+      publishedAt: article.publishedAt,
+      source: {
+        name: article.source.name,
+        url: article.source.url
+      }
+    }));
+
+    res.json({ articles, total: response.data.totalArticles });
+  } catch (error) {
+    console.error('Error searching news:', error.message);
+    res.status(500).json({ error: 'Failed to search news', message: error.message });
+  }
+};
+
+// Save news article to database
+exports.saveArticle = async (req, res) => {
+  try {
+    const { title, content, description, category, url, image, publishedAt, source } = req.body;
+    const userId = req.user.id;
+
+    // Check if article already exists
+    let article = await News.findOne({ url });
+
+    if (article) {
+      // Add user to savedBy if not already saved
+      if (!article.savedBy.includes(userId)) {
+        article.savedBy.push(userId);
+        await article.save();
+      }
+    } else {
+      // Create new article
+      article = new News({
+        title,
+        content,
+        description,
+        category,
+        url,
+        image,
+        publishedAt,
+        source,
+        summary: description,
+        savedBy: [userId]
+      });
+      await article.save();
+    }
+
+    // Update user preferences
+    const preference = await Preference.findOne({ userId });
+    if (preference && !preference.savedArticles.includes(article._id)) {
+      preference.savedArticles.push(article._id);
+      await preference.save();
+    }
+
+    res.status(201).json({ message: 'Article saved successfully', article });
+  } catch (error) {
+    console.error('Error saving article:', error.message);
+    res.status(500).json({ error: 'Failed to save article', message: error.message });
+  }
+};
+
+// Get saved articles for a user
+exports.getSavedArticles = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const preference = await Preference.findOne({ userId }).populate('savedArticles');
+
+    if (!preference) {
+      return res.json({ articles: [] });
+    }
+
+    res.json({ articles: preference.savedArticles });
+  } catch (error) {
+    console.error('Error fetching saved articles:', error.message);
+    res.status(500).json({ error: 'Failed to fetch saved articles', message: error.message });
+  }
+};
+
+// Remove saved article
+exports.removeSavedArticle = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { articleId } = req.params;
+
+    const preference = await Preference.findOne({ userId });
+    if (!preference) {
+      return res.status(404).json({ message: 'Preferences not found' });
+    }
+
+    // Remove from savedArticles
+    preference.savedArticles = preference.savedArticles.filter(
+      id => id.toString() !== articleId
+    );
+    await preference.save();
+
+    // Remove user from article's savedBy
+    const article = await News.findById(articleId);
+    if (article) {
+      article.savedBy = article.savedBy.filter(id => id.toString() !== userId);
+      await article.save();
+    }
+
+    res.json({ message: 'Article removed from saved list' });
+  } catch (error) {
+    console.error('Error removing saved article:', error.message);
+    res.status(500).json({ error: 'Failed to remove article', message: error.message });
+  }
+};
+
+// Summarize article using built-in summarizer
+exports.summarizeArticle = async (req, res) => {
+  try {
+    const { text, max_length, min_length } = req.body;
+
+    if (!text) {
+      return res.status(400).json({ error: 'Text is required for summarization' });
+    }
+
+    // Use built-in extractive summarization
+    let summary;
+    
+    if (max_length) {
+      // Summarize by character length
+      summary = summarizer.summarizeByLength(text, max_length * 5); // Approximate conversion
+    } else {
+      // Summarize by number of sentences (default: 3)
+      const numSentences = Math.max(2, Math.min(5, Math.floor(text.length / 200)));
+      summary = summarizer.summarize(text, numSentences);
+    }
+
+    res.json({ 
+      summary,
+      cached: false
+    });
+  } catch (error) {
+    console.error('Error summarizing article:', error.message);
+    res.status(500).json({ 
+      error: 'Failed to summarize article', 
+      message: error.message 
+    });
+  }
+};
+
+// Mark article as read
+exports.markAsRead = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { articleId } = req.params;
+
+    const preference = await Preference.findOne({ userId });
+    if (!preference) {
+      return res.status(404).json({ message: 'Preferences not found' });
+    }
+
+    // Check if already marked as read
+    const alreadyRead = preference.readArticles.some(
+      item => item.articleId.toString() === articleId
+    );
+
+    if (!alreadyRead) {
+      preference.readArticles.push({
+        articleId,
+        readAt: new Date()
+      });
+      await preference.save();
+    }
+
+    res.json({ message: 'Article marked as read' });
+  } catch (error) {
+    console.error('Error marking article as read:', error.message);
+    res.status(500).json({ error: 'Failed to mark article as read', message: error.message });
+  }
+};

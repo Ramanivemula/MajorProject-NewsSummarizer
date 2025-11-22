@@ -1,173 +1,231 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  FaGlobeAsia,
+  FaMapMarkerAlt,
+  FaRegCalendarAlt,
+  FaTag,
+  FaExternalLinkAlt,
+} from "react-icons/fa";
 import axios from "axios";
+import SummarizeButton from "../components/SummarizeButton";
 
-const Dashboard = () => {
-  const [user, setUser] = useState({ name: "User" });
-  const [categories, setCategories] = useState([]);
-  const [countries, setCountries] = useState([]);
-  const [states, setStates] = useState([]);
+const countries = ["in", "us", "au", "gb", "ca"];
+const countryNames = {
+  in: "India",
+  us: "United States",
+  au: "Australia",
+  gb: "United Kingdom",
+  ca: "Canada"
+};
+const categories = ["general", "technology", "sports", "science", "health", "business", "entertainment", "nation", "world"];
 
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedCountry, setSelectedCountry] = useState("");
-  const [selectedState, setSelectedState] = useState("");
-  const [selectedTime, setSelectedTime] = useState("lastWeek");
-
-  const [newsList, setNewsList] = useState([]);
-
-  const baseURL = "http://localhost:5000/api/news"; // change if deployed
+function Dashboard() {
+  const [user, setUser] = useState(null);
+  const [filters, setFilters] = useState({ country: "", category: "", date: "" });
+  const [allNews, setAllNews] = useState([]);
+  const [filteredNews, setFilteredNews] = useState([]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const userData = JSON.parse(localStorage.getItem("user"));
-    if (userData) setUser(userData);
-  }, []);
-
-  useEffect(() => {
-    const fetchFilters = async () => {
+    const fetchUser = async () => {
       try {
-        const res = await axios.get(`${baseURL}/filters`);
-        const { categories, countries, states } = res.data;
-        setCategories(categories);
-        setCountries(countries);
-        setStates(states);
+        const res = await fetch("/api/auth/me", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+        });
+        const data = await res.json();
+        setUser(data.user);
       } catch (err) {
-        console.error("Failed to load filters", err);
+        console.error("Failed to load user:", err);
       }
     };
-    fetchFilters();
+    fetchUser();
   }, []);
 
   useEffect(() => {
-    const fetchLatestNews = async () => {
+    const fetchNews = async () => {
       try {
-        const res = await axios.get(`${baseURL}/latest`);
-        const newsArray = Array.isArray(res.data.articles) ? res.data.articles : [];
-        setNewsList(newsArray);
-        console.log("Dashboard News:", newsArray);
+        setLoading(true);
+        const params = new URLSearchParams();
+        if (filters.country) params.append('country', filters.country);
+        if (filters.category) params.append('category', filters.category);
+        params.append('max', '20');
+        
+        const res = await axios.get(`/api/news/latest?${params.toString()}`);
+        console.log("News fetched:", res.data);
+        const articles = res.data.articles || [];
+        setAllNews(articles);
+        setFilteredNews(articles);
       } catch (err) {
-        console.error("Failed to fetch latest news", err.message);
-        setNewsList([]);
+        console.error("Error fetching news:", err.message);
+        setAllNews([]);
+        setFilteredNews([]);
+      } finally {
+        setLoading(false);
       }
     };
-    fetchLatestNews();
-  }, []);
+    fetchNews();
+  }, [filters.country, filters.category]);
+
+  useEffect(() => {
+    let filtered = allNews;
+    if (filters.date) {
+      filtered = filtered.filter(article => {
+        const articleDate = new Date(article.publishedAt).toISOString().split('T')[0];
+        return articleDate === filters.date;
+      });
+    }
+    setFilteredNews(filtered);
+  }, [filters.date, allNews]);
+
+  const handleChange = (e) => {
+    setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
 
   const handleLogout = () => {
-    localStorage.clear();
-    window.location.href = "/login";
+    localStorage.removeItem("token");
+    navigate("/login");
+  };
+
+  const getInitials = (name) => {
+    if (!name) return "";
+    return name.split(" ").map(n => n[0].toUpperCase()).join("");
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-purple-700 text-gray55600 px-6 py-4 flex justify-between items-center">
-        <h1 className="text-2xl font-bold">MeraPaper Dashboard</h1>
-        <div className="relative group">
-          <button className="font-semibold">{user.name} ⏷</button>
-          <div className="absolute right-0 mt-2 w-32 bg-white text-black shadow-md rounded hidden group-hover:block z-10">
-          <button
-  onClick={() => (window.location.href = "/edit")}
-  className="block w-full px-4 py-2 text-left hover:bg-gray-200"
->
-  Edit
-</button>
-            <button onClick={handleLogout} className="block w-full px-4 py-2 text-left hover:bg-gray-200">
-              Logout
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white shadow px-6 py-4 flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-purple-700">📰 NewsSummarizer</h1>
+        {user && (
+          <div className="relative">
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center font-semibold text-lg"
+            >
+              {getInitials(user.name)}
             </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main */}
-      <main className="p-6">
-        <h2 className="text-xl font-bold text-purple-700 mb-4">News Feed</h2>
-
-        {/* Filters */}
-        <section className="bg-white p-6 rounded shadow-md mb-8">
-          <h3 className="text-lg font-semibold mb-4">Filter News</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <FilterSelect label="News Categories" options={categories} value={selectedCategory} onChange={setSelectedCategory} defaultText="All" />
-            <FilterSelect label="Country" options={countries} value={selectedCountry} onChange={setSelectedCountry} defaultText="All Countries" />
-            <FilterSelect label="State" options={states} value={selectedState} onChange={setSelectedState} defaultText="All States" />
-            <FilterSelect
-              label="Time Range"
-              options={[
-                { label: "Last Week", value: "lastWeek" },
-                { label: "Last Month", value: "lastMonth" },
-                { label: "Last Year", value: "lastYear" },
-              ]}
-              value={selectedTime}
-              onChange={setSelectedTime}
-              isObjectOption
-            />
-          </div>
-        </section>
-
-        {/* News Cards (like Landing Page style) */}
-        <section className="py-10">
-          <h3 className="text-3xl font-bold text-purple-700 mb-10 text-center">News For You</h3>
-          <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-3 px-4 md:px-10">
-            {newsList.length === 0 ? (
-              <p className="col-span-full text-gray-500 text-lg text-center">No news found at the moment.</p>
-            ) : (
-              newsList.slice(0, 6).map((news, index) => (
-                <div
-                  key={index}
-                  className="bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all p-6 flex flex-col justify-between text-left border border-gray-200 min-h-[340px] max-w-[360px] mx-auto"
+            {dropdownOpen && (
+              <div className="absolute right-0 mt-2 w-44 bg-white rounded-md shadow z-20">
+                <button
+                  onClick={() => navigate("/edit-profile")}
+                  className="block w-full text-left px-4 py-2 hover:bg-gray-100"
                 >
-                  <div className="space-y-4">
-                    <h4 className="font-semibold text-lg md:text-xl text-gray-900 tracking-normal leading-snug line-clamp-2">
-                      🗞️ {news.title}
-                    </h4>
-                    <ul className="text-sm text-gray-700 space-y-2 list-disc ml-5 leading-relaxed">
-                      {news.summary?.slice(0, 4).map((point, i) => (
-                        <li key={i}>{point}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="mt-6">
-                    <a
-                      href={news.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-purple-700 hover:text-purple-900 font-medium text-sm underline"
-                    >
-                      🔗 Read Full Article
-                    </a>
-                    <p className="text-xs text-gray-400 mt-1">📅 {new Date(news.publishedAt).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              ))
+                  Edit Profile
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="block w-full text-left px-4 py-2 text-red-600 hover:bg-gray-100"
+                >
+                  Logout
+                </button>
+              </div>
             )}
           </div>
-        </section>
-      </main>
+        )}
+      </header>
 
-      {/* Footer */}
-      <footer className="text-center text-sm text-gray-500 py-4">
-        © 2025 MeraPaper | Made with ❤️ for Smart News Reading
-      </footer>
+      <div className="p-6">
+        <h2 className="text-xl font-semibold mb-4 text-gray-700">Filter News</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <select
+            name="country"
+            value={filters.country}
+            onChange={handleChange}
+            className="px-4 py-2 border rounded-md"
+          >
+            <option value="">All Countries</option>
+            {countries.map(c => <option key={c} value={c}>{countryNames[c]}</option>)}
+          </select>
+
+          <select
+            name="category"
+            value={filters.category}
+            onChange={handleChange}
+            className="px-4 py-2 border rounded-md"
+          >
+            <option value="">All Categories</option>
+            {categories.map(cat => (
+              <option key={cat} value={cat}>
+                {cat.charAt(0).toUpperCase() + cat.slice(1)}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="date"
+            name="date"
+            value={filters.date}
+            onChange={handleChange}
+            className="px-4 py-2 border rounded-md"
+          />
+        </div>
+
+        {loading ? (
+          <div className="text-center py-10">
+            <p className="text-gray-600 text-lg">Loading news...</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              {filteredNews.map((article, index) => (
+                <div
+                  key={index}
+                  className="bg-white border rounded-xl shadow hover:shadow-lg transition-shadow overflow-hidden"
+                >
+                  {article.image && (
+                    <img 
+                      src={article.image} 
+                      alt={article.title} 
+                      className="w-full h-48 object-cover"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  )}
+                  <div className="p-4">
+                    <h3 className="text-lg font-semibold text-purple-800 mb-2">{article.title}</h3>
+                    {article.source?.name && (
+                      <div className="text-sm text-gray-600 flex items-center gap-2 mb-1">
+                        <FaTag className="text-purple-400" /> {article.source.name}
+                      </div>
+                    )}
+                    <div className="text-sm text-gray-600 flex items-center gap-2 mb-2">
+                      <FaRegCalendarAlt className="text-purple-400" /> 
+                      {new Date(article.publishedAt).toLocaleDateString()}
+                    </div>
+                    <p className="text-sm text-gray-700 mb-3 line-clamp-3">
+                      {article.description || article.summary || article.content}
+                    </p>
+                    <div className="flex items-center gap-4">
+                      <a
+                        href={article.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center text-sm text-purple-600 hover:underline font-medium"
+                      >
+                        Read Full Article <FaExternalLinkAlt className="ml-1" />
+                      </a>
+                      <SummarizeButton article={{
+                        ...article,
+                        link: article.url,
+                        fullText: article.content
+                      }} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {filteredNews.length === 0 && !loading && (
+              <p className="text-gray-600 mt-6">No news articles match the filters.</p>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
-};
-
-const FilterSelect = ({ label, options, value, onChange, defaultText, isObjectOption = false }) => (
-  <div>
-    <label className="block text-sm font-medium mb-1">{label}</label>
-    <select className="w-full border rounded p-2" value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">{defaultText}</option>
-      {options.map((opt, idx) =>
-        isObjectOption ? (
-          <option key={idx} value={opt.value}>
-            {opt.label}
-          </option>
-        ) : (
-          <option key={idx} value={opt}>
-            {opt}
-          </option>
-        )
-      )}
-    </select>
-  </div>
-);
+}
 
 export default Dashboard;
