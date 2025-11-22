@@ -1,243 +1,138 @@
-import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import axios from "axios";
+import React, { useState } from 'react';
+import axios from 'axios';
+import { Mail, Lock, User, Globe, Send } from 'lucide-react';
+import image from '../assets/image.png';
+import { Link } from 'react-router-dom'; // ✅ Make sure this is imported
 
-const countries = ["India", "USA", "Canada"];
-const statesByCountry = {
-  India: ["Maharashtra", "Delhi", "Karnataka", "Tamil Nadu"],
-  USA: ["California", "Texas", "New York"],
-  Canada: ["Ontario", "Quebec", "British Columbia"],
-};
-
-const newsTypesList = ["Politics", "Sports", "Technology", "Health", "Entertainment"];
-const deliveryMethods = ["email", "whatsapp"];
-
-const SignUp = () => {
-  const navigate = useNavigate();
-
+function SignUp() {
   const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    preferences: {
-      newsTypes: [],
-      country: "",
-      state: "",
-      notifyDaily: null,
-      deliveryMethod: [],
-    },
+    name: '',
+    email: '',
+    password: '',
+    newsTypes: '',
+    country: '',
+    state: '',
+    notifyDaily: false,
+    deliveryMethod: 'email',
   });
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  const [message, setMessage] = useState('');
 
-  const handlePreferenceChange = (e) => {
+  function handleChange(e) {
     const { name, value, type, checked } = e.target;
-    if (type === "checkbox") {
-      setFormData((prev) => ({
-        ...prev,
-        preferences: {
-          ...prev.preferences,
-          [name]: checked
-            ? [...prev.preferences[name], value]
-            : prev.preferences[name].filter((v) => v !== value),
-        },
-      }));
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        preferences: {
-          ...prev.preferences,
-          [name]: value,
-        },
-      }));
-    }
-  };
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
+  }
 
-  const handleSubmit = async (e) => {
+  async function handleSubmit(e) {
     e.preventDefault();
     try {
-      const res = await axios.post("http://localhost:5000/api/auth/register", formData);
-      alert(res.data.msg);
-      navigate("/login");
+      await axios.post('http://localhost:5000/api/auth/register', formData);
+      setMessage('✅ Registered Successfully!');
     } catch (err) {
-      alert(err.response?.data?.msg || "Registration failed");
+      setMessage(`❌ ${err.response?.data?.message || 'Error occurred'}`);
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4 py-8">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white w-full max-w-3xl rounded-xl shadow-md p-10 space-y-6"
-      >
-        <h2 className="text-3xl font-semibold text-center text-indigo-700 mb-2">
-          Create Your MeraPaper Account
-        </h2>
+    <div className="flex flex-col lg:flex-row">
+      {/* Left side - Image */}
+      <div className="lg:w-1/2 bg-blue-100 flex items-center justify-center p-12">
+        <img src={image} alt="News Illustration" className="rounded-xl" />
+      </div>
 
-        {/* Full Name */}
-        <input
-          type="text"
-          name="name"
-          placeholder="Full Name"
-          value={formData.name}
-          onChange={handleInputChange}
-          required
-          className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
+      {/* Right side - Form */}
+      <div className="lg:w-1/2 w-full flex items-center justify-center bg-white p-4 border rounded-">
+        <div className="w-full max-w-md space-y-4">
+          <h1 className="text-4xl font-bold text-center text-gray-800">Sign up to NewsFlow</h1>
+          <p className="text-center text-gray-500 text-sm">
+            Stay updated with the latest news personalized just for you.
+          </p>
 
-        {/* Email */}
-        <input
-          type="email"
-          name="email"
-          placeholder="Email Address"
-          value={formData.email}
-          onChange={handleInputChange}
-          required
-          className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-
-        {/* Password */}
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          value={formData.password}
-          onChange={handleInputChange}
-          required
-          className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-
-        {/* Country */}
-        <select
-          name="country"
-          value={formData.preferences.country}
-          onChange={handlePreferenceChange}
-          required
-          className="w-full px-4 py-3 border rounded-lg text-gray-700"
-        >
-          <option value="">Select Country</option>
-          {countries.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-
-        {/* State */}
-        <select
-          name="state"
-          value={formData.preferences.state}
-          onChange={handlePreferenceChange}
-          required
-          className="w-full px-4 py-3 border rounded-lg text-gray-700"
-        >
-          <option value="">Select State</option>
-          {(statesByCountry[formData.preferences.country] || []).map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-
-        {/* News Types */}
-        <div>
-          <label className="block mb-2 font-medium text-gray-700">News Preferences</label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {newsTypesList.map((type) => (
-              <label key={type} className="flex items-center gap-2 text-sm">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {[
+              { name: 'name', icon: <User />, placeholder: 'Full Name' },
+              { name: 'email', icon: <Mail />, placeholder: 'Email', type: 'email' },
+              { name: 'password', icon: <Lock />, placeholder: 'Password', type: 'password' },
+              { name: 'newsTypes', icon: <Send />, placeholder: 'News Types (comma-separated)' },
+              { name: 'country', icon: <Globe />, placeholder: 'Country' },
+              { name: 'state', icon: <Globe />, placeholder: 'State' },
+            ].map(({ name, icon, placeholder, type = 'text' }) => (
+              <div
+                key={name}
+                className="flex items-center gap-3 px-4 py-1 border border-gray-400 rounded-xl bg-gray-50"
+              >
+                <span className="text-gray-500">{icon}</span>
                 <input
-                  type="checkbox"
-                  name="newsTypes"
-                  value={type}
-                  checked={formData.preferences.newsTypes.includes(type)}
-                  onChange={handlePreferenceChange}
+                  type={type}
+                  name={name}
+                  placeholder={placeholder}
+                  value={formData[name]}
+                  onChange={handleChange}
+                  className="w-full bg-transparent outline-none text-sm py-2"
+                  required
                 />
-                {type}
-              </label>
+              </div>
             ))}
-          </div>
-        </div>
 
-        {/* Daily Notification */}
-        <div>
-          <label className="block mb-2 font-medium text-gray-700">
-            Receive Daily News Notifications
-          </label>
-          <div className="flex gap-6 text-sm">
-            <label className="flex items-center gap-2">
+            {/* Checkbox */}
+            <div className="flex items-center space-x-2 text-sm">
               <input
-                type="radio"
+                type="checkbox"
                 name="notifyDaily"
-                value="true"
-                checked={formData.preferences.notifyDaily === true}
-                onChange={() =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    preferences: { ...prev.preferences, notifyDaily: true },
-                  }))
-                }
-                required
+                checked={formData.notifyDaily}
+                onChange={handleChange}
+                className="accent-blue-600"
               />
-              Yes
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="notifyDaily"
-                value="false"
-                checked={formData.preferences.notifyDaily === false}
-                onChange={() =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    preferences: { ...prev.preferences, notifyDaily: false },
-                  }))
-                }
-              />
-              No
-            </label>
-          </div>
-        </div>
+              <label htmlFor="notifyDaily">Send me daily news updates</label>
+            </div>
 
-        {/* Delivery Methods */}
-        <div>
-          <label className="block mb-2 font-medium text-gray-700">Delivery Method</label>
-          <div className="flex gap-6 text-sm">
-            {deliveryMethods.map((method) => (
-              <label key={method} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  name="deliveryMethod"
-                  value={method}
-                  checked={formData.preferences.deliveryMethod.includes(method)}
-                  onChange={handlePreferenceChange}
-                />
-                {method.charAt(0).toUpperCase() + method.slice(1)}
-              </label>
-            ))}
-          </div>
-        </div>
+            {/* Delivery Method */}
+            <div>
+              <label className="block text-sm mb-1 text-gray-700">Delivery Method</label>
+              <select
+                name="deliveryMethod"
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-xl text-sm bg-gray-50"
+              >
+                <option value="email">Email</option>
+                <option value="whatsapp">WhatsApp</option>
+              </select>
+            </div>
 
-        {/* Submit */}
-        <button
-          type="submit"
-          className="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium text-lg hover:bg-indigo-700 transition"
-        >
-          Sign Up
-        </button>
+            {/* Submit Button */}
+            <button
+              type="submit"
+              className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl transition duration-300 shadow-md"
+            >
+              Register Now
+            </button>
+          </form>
 
-        {/* Already a member */}
-        <div className="text-center text-sm text-gray-600 mt-2">
-          Already a member?{" "}
-          <Link to="/login" className="text-indigo-600 hover:underline font-medium">
-            Login here
-          </Link>
+          {/* ✅ Login Redirect */}
+          <p className="text-center text-sm text-gray-600 mt-2">
+            Already registered?{' '}
+            <Link to="/login" className="text-purple-600 font-medium hover:underline">
+              Login here
+            </Link>
+          </p>
+
+          {/* Message Display */}
+          {message && (
+            <p
+              className={`text-center mt-2 text-sm ${
+                message.startsWith('✅') ? 'text-green-600' : 'text-red-600'
+              }`}
+            >
+              {message}
+            </p>
+          )}
         </div>
-      </form>
+      </div>
     </div>
   );
-};
+}
 
 export default SignUp;

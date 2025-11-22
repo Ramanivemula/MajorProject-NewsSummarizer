@@ -1,13 +1,8 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const dotenv = require("dotenv");
-const cors = require("cors");
-
-const authRoutes = require("./routes/authRoutes");
-const preferenceRoutes = require("./routes/preferenceRoutes");
-const newsRoutes = require("./routes/newsRoutes"); // ✅ Ye correctly import hona chahiye
-
-dotenv.config();
+const express = require('express');
+const cors = require('cors');
+require('dotenv').config();
+const connectDB = require('./config/db');
+const { verifyTransport } = require('./utils/mailer');
 
 const app = express();
 
@@ -15,22 +10,24 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/preferences", preferenceRoutes);
-app.use("/api/news", newsRoutes); // ✅ Base route
+// Connect to Database
+connectDB();
+// Verify email transporter (non-fatal if fails)
+verifyTransport();
 
-// Test Route
-app.get("/", (req, res) => {
-  res.send("Server is running...");
+// Routes
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/user', require('./routes/userRoutes'));
+app.use('/api/news', require('./routes/newsRoutes'));
+
+// Health check route
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', message: 'Server is running' });
 });
 
-// DB Connect
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.log("❌ DB Connection Error:", err));
-
-// Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📡 API available at http://localhost:${PORT}`);
+});
