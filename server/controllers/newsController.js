@@ -305,3 +305,21 @@ exports.markAsRead = async (req, res) => {
     res.status(500).json({ error: 'Failed to mark article as read', message: error.message });
   }
 };
+
+// Trigger sending personalized digest for a user (protected endpoint)
+exports.sendDigest = async (req, res) => {
+  try {
+    const scheduler = require('../utils/scheduler');
+    // Allow admins to pass userId in body, otherwise use authenticated user
+    const targetUserId = req.body.userId || req.user.id;
+
+    const result = await scheduler.sendDigestForUser(targetUserId);
+    if (result.ok) {
+      return res.json({ message: 'Digest sent', result });
+    }
+    return res.status(400).json({ message: 'Failed to send digest', result });
+  } catch (err) {
+    console.error('Error in sendDigest controller:', err.message);
+    res.status(500).json({ error: 'Failed to send digest', message: err.message });
+  }
+};

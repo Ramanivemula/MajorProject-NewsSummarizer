@@ -3,6 +3,7 @@ const cors = require('cors');
 require('dotenv').config();
 const connectDB = require('./config/db');
 const { verifyTransport } = require('./utils/mailer');
+const { startScheduler } = require('./utils/scheduler');
 
 const app = express();
 
@@ -15,10 +16,15 @@ connectDB();
 // Verify email transporter (non-fatal if fails)
 verifyTransport();
 
+// Start daily email scheduler (will only send if transporter works and preferences exist)
+startScheduler();
+
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/user', require('./routes/userRoutes'));
 app.use('/api/news', require('./routes/newsRoutes'));
+// NewsData.io based endpoints (optional alternative source)
+app.use('/api/newsdata', require('./routes/newsDataRoutes'));
 
 // Health check route
 app.get('/health', (req, res) => {
