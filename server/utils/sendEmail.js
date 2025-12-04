@@ -59,13 +59,23 @@ async function sendEmail(to, subject, html) {
       subject, 
       html 
     });
-    console.log('✅ Email sent successfully');
-    console.log('   To:', to);
-    console.log('   Message ID:', info.messageId);
+      console.log('✅ Email sent successfully');
+      console.log('   To:', to);
+      console.log('   Message ID:', info.messageId);
+      // Log nodemailer info for debugging (accepted/rejected/response)
+      try {
+        console.log('   Nodemailer info:', {
+          accepted: info.accepted, rejected: info.rejected, response: info.response, envelope: info.envelope
+        });
+      } catch (e) {
+        console.log('   Nodemailer info: (unable to stringify)');
+      }
     return info;
   } catch (error) {
-    console.error('❌ Failed to send email to:', to);
-    console.error('   Error:', error.message);
+      console.error('❌ Failed to send email to:', to);
+      console.error('   Error message:', error.message);
+      // Log full error for debugging (stack / response)
+      console.error(error);
     
     // In development, log OTP and continue instead of failing
     if (process.env.NODE_ENV !== 'production') {

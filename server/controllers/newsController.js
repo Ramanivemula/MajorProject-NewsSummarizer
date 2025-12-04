@@ -323,3 +323,22 @@ exports.sendDigest = async (req, res) => {
     res.status(500).json({ error: 'Failed to send digest', message: err.message });
   }
 };
+
+// Trigger sending personalized digest by email (protected) - helpful for manual testing
+exports.sendDigestByEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'User not found for provided email' });
+
+    const scheduler = require('../utils/scheduler');
+    const result = await scheduler.sendDigestForUser(user._id);
+    if (result.ok) return res.json({ message: 'Digest sent', result });
+    return res.status(400).json({ message: 'Failed to send digest', result });
+  } catch (err) {
+    console.error('Error in sendDigestByEmail controller:', err.message);
+    res.status(500).json({ error: 'Failed to send digest by email', message: err.message });
+  }
+};

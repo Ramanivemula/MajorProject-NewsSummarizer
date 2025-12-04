@@ -16,5 +16,7 @@ router.post('/summarize', authenticateToken, newsController.summarizeArticle);
 router.post('/read/:articleId', authenticateToken, newsController.markAsRead);
 // Trigger a single personalized digest (protected). Body may include { userId } for admins; otherwise sends for current user.
 router.post('/send-digest', authenticateToken, newsController.sendDigest);
+// Send digest by email (protected) - accepts { email }
+router.post('/send-digest-by-email', authenticateToken, newsController.sendDigestByEmail);
 
 module.exports = router;

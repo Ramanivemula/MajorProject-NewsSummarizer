@@ -14,6 +14,13 @@ function todayISO() {
   return `${year}-${mm}-${dd}`;
 }
 
+// Helper: returns time window (earliest Date) for digest collection
+function windowStartDate() {
+  const hours = Number(process.env.DIGEST_WINDOW_HOURS || 24);
+  const now = new Date();
+  return new Date(now.getTime() - hours * 60 * 60 * 1000);
+}
+
 // Normalize category/name to GNews category values if possible
 function mapNewsTypeToCategory(type) {
   if (!type) return undefined;
@@ -35,11 +42,13 @@ async function fetchTodaysArticlesForPreference(pref) {
       try {
         const serverUrl = process.env.SERVER_URL || `http://localhost:${process.env.PORT || 5000}`;
         const resp = await axios.get(`${serverUrl}/api/newsdata/personalized/${pref.userId}`);
+        const now = new Date();
+        const earliest = windowStartDate();
+        console.log(`   → Using digest time window: ${earliest.toISOString()} -> ${now.toISOString()}`);
         const articles = (resp.data.articles || []).filter(a => {
           try {
             const published = new Date(a.publishedAt);
-            const iso = published.toISOString().split('T')[0];
-            return iso === todayISO();
+            return published >= earliest && published <= now;
           } catch (e) { return false; }
         }).slice(0, 10);
         return articles;
@@ -80,8 +89,10 @@ async function fetchTodaysArticlesForPreference(pref) {
           if (collected.length >= maxArticles) break;
           try {
             const published = new Date(a.publishedAt);
-            const iso = published.toISOString().split('T')[0];
-            if (iso !== todayISO()) continue; // only today's articles
+            const now = new Date();
+            const earliest = windowStartDate();
+            // Only include articles within the digest time window (default: last 24 hours)
+            if (published < earliest || published > now) continue;
           } catch (e) { continue; }
 
           if (!a.url) continue;
@@ -155,15 +166,20 @@ async function sendDailyEmails() {
         const emailSettings = pref.notificationSettings?.email || {};
         if (emailSettings.frequency !== 'daily') continue;
 
-        // Respect per-user delivery time: only send when the user's timeOfDay matches server local HH:mm,
-        // or when timeOfDay is not set. This allows manual runs and TEST_SEND_TIME scheduling to work.
+        // Respect per-user delivery time by default: only send when the user's timeOfDay matches server local HH:mm,
+        // or when timeOfDay is not set. However, when `TEST_SEND_TIME` is used to schedule a test run,
+        // we intentionally override per-user `timeOfDay` so every enabled user receives the digest for testing.
         const now = new Date();
         const hh = String(now.getHours()).padStart(2, '0');
         const mm = String(now.getMinutes()).padStart(2, '0');
         const currentTime = `${hh}:${mm}`; // e.g. '08:00'
-        if (emailSettings.timeOfDay && emailSettings.timeOfDay !== currentTime) {
+        const isTestMode = Boolean(process.env.TEST_SEND_TIME);
+        if (!isTestMode && emailSettings.timeOfDay && emailSettings.timeOfDay !== currentTime) {
           console.log(`   → skipping: user.timeOfDay=${emailSettings.timeOfDay} currentTime=${currentTime}`);
           continue;
+        }
+        if (isTestMode && emailSettings.timeOfDay && emailSettings.timeOfDay !== currentTime) {
+          console.log(`   → TEST_SEND_TIME is set — overriding user.timeOfDay=${emailSettings.timeOfDay}; sending now for test`);
         }
 
         const articles = await fetchTodaysArticlesForPreference(pref);
